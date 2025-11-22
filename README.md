@@ -80,6 +80,8 @@ This stores your password prefix securely in macOS keychain.
 ```
 Checks connection every 30 seconds and prompts for YubiKey token when reconnection is needed.
 
+**Interactive feature:** Press Enter while monitoring to immediately check VPN status and reconnect if needed. No more waiting for the next check cycle!
+
 ### Custom check interval:
 ```bash
 ./tunnelblick-monitor "Red Hat Global VPN" --check-interval 60
@@ -87,12 +89,15 @@ Checks connection every 30 seconds and prompts for YubiKey token when reconnecti
 
 ## How Monitoring Works
 
-1. **Detects VPN drops** automatically
-2. **Prompts for YubiKey token** when reconnection is needed
-3. **Combines stored prefix + fresh token** for authentication
-4. **Handles the entire reconnection process** automatically
+1. **Detects VPN drops** automatically (every 30 seconds by default)
+2. **Interactive checking:** Press Enter to immediately check VPN status
+3. **Prompts for YubiKey token** when reconnection is needed
+4. **Combines stored prefix + fresh token** for authentication
+5. **Handles the entire reconnection process** automatically
 
 **Semi-automatic:** You still need to provide fresh YubiKey tokens when prompted, but everything else is handled automatically.
+
+**Perfect for laptop users:** When you come back to your laptop and see VPN is down, just press Enter to immediately trigger a reconnection instead of waiting for the next scheduled check!
 
 ## Security & Storage
 

@@ -17,6 +17,7 @@ import getpass
 import argparse
 import signal
 import sys
+import select
 from pathlib import Path
 import keyring
 from typing import Optional
@@ -184,6 +185,25 @@ def _check_internet_connectivity() -> bool:
         return False
 
 
+def _check_for_keypress() -> bool:
+    """
+    Check if a key has been pressed without blocking.
+    Simple version that doesn't require raw terminal mode.
+
+    Return Value(s):
+        bool: True if a key was pressed, False otherwise
+    """
+    try:
+        # Check if input is available without blocking
+        if select.select([sys.stdin], [], [], 0.0)[0]:
+            # Read and discard the input to clear buffer
+            sys.stdin.readline()
+            return True
+        return False
+    except:
+        return False
+
+
 class VPNMonitor:
     """
     VPN connection monitor that handles automatic reconnection.
@@ -219,7 +239,7 @@ class VPNMonitor:
 
     def _get_yubikey_token(self) -> str:
         """
-        Prompt for YubiKey token with timeout.
+        Prompt for YubiKey token.
 
         Return Value(s):
             str: 6-digit token from YubiKey
@@ -266,9 +286,40 @@ class VPNMonitor:
 
         return _connect_vpn(self.config_name, full_password)
 
+    def _check_and_reconnect(self, prefix: str) -> None:
+        """
+        Check VPN status and reconnect if needed.
+
+        Arg(s):
+            prefix (str): Stored password prefix
+        """
+        status = _get_vpn_status(self.config_name)
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        if status == "CONNECTED":
+            print(f"[{current_time}] VPN is connected ✅")
+            # Reset reconnect count on successful connection
+            self.reconnect_count = 0
+        else:
+            print(f"[{current_time}] VPN is disconnected ({status}) ❌")
+            print("Attempting to reconnect...")
+
+            token = self._get_yubikey_token()
+            full_password = prefix + token
+
+            if _connect_vpn(self.config_name, full_password):
+                self.reconnect_count += 1
+                print(f"✅ Reconnected successfully (attempt #{self.reconnect_count})")
+            else:
+                print("❌ Reconnection failed. Will try again next cycle.")
+                # Check if it's a network issue
+                if not _check_internet_connectivity():
+                    print("Note: No internet connectivity detected. Check your local network connection.")
+
     def start_monitoring(self) -> None:
         """
         Start monitoring the VPN connection and auto-reconnect when needed.
+        Supports Enter key to trigger immediate check.
         """
         prefix = _get_stored_credentials(self.config_name)
         if not prefix:
@@ -277,45 +328,35 @@ class VPNMonitor:
 
         print(f"Starting VPN monitor for '{self.config_name}'")
         print(f"Check interval: {self.check_interval} seconds")
-        print("Press Ctrl+C to stop monitoring")
+        print("Press Enter to check VPN immediately, or Ctrl+C to stop monitoring")
+        print("=" * 60)
 
         self.running = True
+        last_check_time = 0
 
-        while self.running:
-            try:
-                status = _get_vpn_status(self.config_name)
-                current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            while self.running:
+                current_time = time.time()
+                key_pressed = _check_for_keypress()
 
-                if status == "CONNECTED":
-                    print(f"[{current_time}] VPN is connected ✅")
-                    # Reset reconnect count on successful connection
-                    self.reconnect_count = 0
-                else:
-                    print(f"[{current_time}] VPN is disconnected ({status}) ❌")
+                # Check if it's time for regular check or key was pressed
+                if key_pressed or (current_time - last_check_time >= self.check_interval):
+                    if key_pressed:
+                        print("🔄 Manual check triggered...")
 
-                    # Check if we have internet connectivity
-                    if _check_internet_connectivity():
-                        print("Internet connectivity detected. Attempting to reconnect...")
-                        token = self._get_yubikey_token()
-                        full_password = prefix + token
+                    self._check_and_reconnect(prefix)
+                    last_check_time = current_time
 
-                        if _connect_vpn(self.config_name, full_password):
-                            self.reconnect_count += 1
-                            print(f"✅ Reconnected successfully (attempt #{self.reconnect_count})")
-                        else:
-                            print("❌ Reconnection failed. Will try again next cycle.")
-                    else:
-                        print("No internet connectivity. Waiting for network...")
+                    if self.running:
+                        print(f"Next check in {self.check_interval}s (or press Enter for immediate check)")
 
-                # Wait for next check
-                if self.running:
-                    time.sleep(self.check_interval)
+                # Short sleep to prevent excessive CPU usage
+                time.sleep(0.5)
 
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                print(f"Error during monitoring: {e}")
-                time.sleep(5)  # Wait a bit before retrying
+        except KeyboardInterrupt:
+            print("\n\nReceived Ctrl+C. Stopping monitor...")
+        except Exception as e:
+            print(f"\nError during monitoring: {e}")
 
         print("VPN monitoring stopped.")
 
