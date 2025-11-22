@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+
+"""
+Simple VPN command wrapper for Tunnelblick automation.
+
+Usage:
+    vpn list
+    vpn status "Red Hat Global VPN"
+    vpn connect "Red Hat Global VPN"
+    vpn disconnect "Red Hat Global VPN"
+"""
+
+import sys
+import os
+
+# Get the directory where this script is located
+script_dir = os.path.dirname(os.path.abspath(__file__))
+vpn_script = os.path.join(script_dir, "tunnelblick_vpn.py")
+
+# Pass all arguments to the main script
+args = sys.argv[1:]
+os.execv(sys.executable, [sys.executable, vpn_script] + args)

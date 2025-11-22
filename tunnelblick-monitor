@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+
+"""
+Simple VPN monitor command wrapper for Tunnelblick automation.
+
+Usage:
+    vpn-monitor "Red Hat Global VPN" --setup
+    vpn-monitor "Red Hat Global VPN" --test
+    vpn-monitor "Red Hat Global VPN"
+    vpn-monitor "Red Hat Global VPN" --check-interval 60
+"""
+
+import sys
+import os
+
+# Get the directory where this script is located
+script_dir = os.path.dirname(os.path.abspath(__file__))
+monitor_script = os.path.join(script_dir, "vpn_monitor.py")
+
+# Pass all arguments to the main script
+args = sys.argv[1:]
+os.execv(sys.executable, [sys.executable, monitor_script] + args)
